@@ -64,20 +64,20 @@ export default function AssignmentDashboard() {
       <div className="absolute top-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-accent/5 blur-[120px] pointer-events-none -z-10" />
 
       {/* Top Header */}
-      <header className="h-16 border-b border-border/40 backdrop-blur-xl px-8 flex items-center justify-between shrink-0">
+      <header className="h-16 border-b border-border/40 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-sm font-bold tracking-tight text-foreground leading-none">Dashboard Overview</h1>
           <p className="text-xs text-muted mt-1">Welcome back, Professor Kumar</p>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Avatar size="sm" className="bg-gradient-to-br from-accent/80 to-accent text-white font-semibold text-xs border border-accent/30">
+          <Avatar size="sm" className="bg-gradient-to-br from-accent/80 to-accent text-white font-semibold text-xs border border-accent/30 hidden sm:flex">
             <Avatar.Fallback>SK</Avatar.Fallback>
           </Avatar>
         </div>
       </header>
 
-      <main className="flex-1 p-8 w-full max-w-7xl mx-auto space-y-6">
+      <main className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto space-y-6">
 
         {/* Assignment Identification Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -100,11 +100,11 @@ export default function AssignmentDashboard() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {assignment.title}
             </h1>
-            <p className="mt-2 text-muted font-medium">
+            <p className="mt-2 text-muted font-medium truncate">
               {course?.name || 'Unknown Course'} · {sections.map(s => s.name).join(', ')} · {totalSubmissions} submissions
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Link href="/assignments">
               <Button variant="secondary" className="font-medium rounded-lg bg-surface hover:bg-default/60 shadow-sm border border-border/50">
                 ← Back to List
@@ -134,29 +134,29 @@ export default function AssignmentDashboard() {
 
         {/* Session Resume Banner */}
         {lastSub && sessionState.savedAt && (
-          <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="bg-accent/5 border border-accent/20 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
             <div className="flex items-center gap-4">
               <div className="size-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
                 <ArrowRotateLeft className="size-5 text-accent" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className="text-xs font-bold uppercase tracking-wider text-accent">Session Resumed</p>
                   <Chip size="sm" variant="soft" color="default" className="h-4 text-[9px] border-none px-1">
                     {formatRelativeTime(sessionState.savedAt)}
                   </Chip>
                 </div>
-                <p className="font-semibold text-foreground text-sm">
+                <p className="font-semibold text-foreground text-sm truncate">
                   Last reviewed: {lastSub.studentName} — {lastSub.paperId}
                 </p>
                 <p className="text-xs text-muted mt-0.5">{progressPercent}% of batch complete · pick up where you left off</p>
               </div>
             </div>
-            <Link href={`/grading/${sessionState.lastOpenedSubmissionId}`}>
+            <Link href={`/grading/${sessionState.lastOpenedSubmissionId}`} className="w-full sm:w-auto">
               <Button
                 variant="primary"
                 size="sm"
-                className="bg-accent text-white font-semibold shadow-md shadow-accent/20 rounded-lg px-4 shrink-0"
+                className="bg-accent text-white font-semibold shadow-md shadow-accent/20 rounded-lg px-4 w-full sm:w-auto"
               >
                 Resume <ArrowUpRight className="ml-1 size-3.5" />
               </Button>
@@ -180,8 +180,8 @@ export default function AssignmentDashboard() {
             </Card.Header>
             <Card.Content className="px-6 py-4">
               <ProgressBar aria-label="Evaluation Progress" value={progressPercent} color="accent" className="max-w-full" />
-              <div className="mt-4 flex justify-between items-center text-sm">
-                <div className="flex gap-6">
+              <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 text-sm">
+                <div className="flex flex-wrap gap-4 sm:gap-6">
                   <div>
                     <p className="text-muted text-xs font-semibold uppercase tracking-wider mb-1">AI Processed</p>
                     <p className="font-medium text-foreground">{processedCount} / {totalSubmissions}</p>
