@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button, Chip } from "@heroui/react";
-import { Check, Clock, PaperPlane, Pencil, ChevronLeft, ChevronRight, Eye, Sparkles } from "@gravity-ui/icons";
+import { Check, Clock, PaperPlane, Pencil, ChevronLeft, ChevronRight, Eye, Sparkles, ListUl, FileText } from "@gravity-ui/icons";
 import { useGradingStore, ReleaseSchedule, Feedback } from "@/lib/store/useGradingStore";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +13,9 @@ import {
   RubricPanel,
   FeedbackEditor,
 } from "@/app/components/feedback-studio";
+
+// Mobile tab types
+type MobileTab = 'submissions' | 'paper' | 'rubric' | 'feedback';
 
 export default function AssignmentFeedback() {
   const params = useParams();
@@ -29,6 +32,7 @@ export default function AssignmentFeedback() {
   const submissions = store.getSubmissionsForAssignment(assignmentId);
   
   const [selectedSubId, setSelectedSubId] = useState<string>("");
+  const [mobileTab, setMobileTab] = useState<MobileTab>('submissions');
   const [showSetup, setShowSetup] = useState(false);
   const [showRefinement, setShowRefinement] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -136,8 +140,8 @@ export default function AssignmentFeedback() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] overflow-hidden">
-      {/* Left Sidebar - Submission List */}
-      <div className="w-72 border-r border-border/40 bg-surface/30 flex flex-col">
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <div className="hidden lg:flex w-72 border-r border-border/40 bg-surface/30 flex-col">
         <div className="p-4 border-b border-border/40">
           <h3 className="font-semibold text-foreground">Submissions</h3>
           <p className="text-xs text-muted">{submissions.length} total</p>
@@ -148,8 +152,11 @@ export default function AssignmentFeedback() {
             return (
               <button
                 key={sub.id}
-                onClick={() => setSelectedSubId(sub.id)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
+                onClick={() => {
+                  setSelectedSubId(sub.id);
+                  setMobileTab('paper');
+                }}
+                className={`w-full text-left p-3 rounded-lg transition-colors touch-target-min ${
                   selectedSubId === sub.id 
                     ? "bg-accent/10 border border-accent/30" 
                     : "hover:bg-default/40 border border-transparent"
@@ -176,144 +183,356 @@ export default function AssignmentFeedback() {
       <div className="flex-1 flex overflow-hidden">
         {selectedSub ? (
           <>
-            {/* Three-Column Layout when feedback exists */}
-            {feedback ? (
-              <>
-                {/* Column 1: Submission Viewer */}
-                <div className="w-1/3 border-r border-border/40 flex flex-col">
-                  <div className="p-3 border-b border-border/40 flex justify-between items-center">
-                    <h4 className="font-semibold text-sm text-foreground">Submission</h4>
-                    <span className="text-xs text-muted">{selectedSub.paperId}</span>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <SubmissionViewer
-                      content={selectedSub.ocrContent}
-                      highlights={feedback.highlights || []}
-                      selectedHighlightId={selectedHighlightId}
-                      onHighlightClick={setSelectedHighlightId}
-                      onTextSelect={(start, end, text) => {
-                        // Would add highlight in full implementation
-                        console.log('Text selected:', { start, end, text });
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Column 2: Rubric Panel */}
-                <div className="w-1/4 border-r border-border/40 flex flex-col">
-                  <div className="p-3 border-b border-border/40">
-                    <h4 className="font-semibold text-sm text-foreground">Rubric</h4>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <RubricPanel
-                      rubric={assignment.rubricSnapshot}
-                      criteria={selectedSub.criteria}
-                    />
-                  </div>
-                </div>
-
-                {/* Column 3: Feedback Editor */}
-                <div className="flex-1 flex flex-col">
-                  <div className="p-3 border-b border-border/40 flex justify-between items-center">
-                    <h4 className="font-semibold text-sm text-foreground">Feedback Editor</h4>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowRefinement(true)}
-                        className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1"
-                      >
-                        <Sparkles className="size-3" />
-                        Refine
-                      </button>
-                      <button
-                        onClick={() => setShowPreview(true)}
-                        className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1"
-                      >
-                        <Eye className="size-3" />
-                        Preview
-                      </button>
+            {/* Desktop: Three-Column Layout when feedback exists */}
+            <div className="hidden lg:flex flex-1">
+              {feedback ? (
+                <>
+                  {/* Column 1: Submission Viewer */}
+                  <div className="w-1/3 border-r border-border/40 flex flex-col">
+                    <div className="p-3 border-b border-border/40 flex justify-between items-center">
+                      <h4 className="font-semibold text-sm text-foreground">Submission</h4>
+                      <span className="text-xs text-muted">{selectedSub.paperId}</span>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <SubmissionViewer
+                        content={selectedSub.ocrContent}
+                        highlights={feedback.highlights || []}
+                        selectedHighlightId={selectedHighlightId}
+                        onHighlightClick={setSelectedHighlightId}
+                        onTextSelect={(start, end, text) => {
+                          console.log('Text selected:', { start, end, text });
+                        }}
+                      />
                     </div>
                   </div>
-                  <div className="flex-1 overflow-hidden">
-                    <FeedbackEditor
-                      feedback={feedback}
-                      highlights={feedback.highlights || []}
-                      linkedEvidence={feedback.linkedEvidence || []}
-                      onUpdateStrength={(idx, text) => handleUpdateFeedbackItem('strength', idx, text)}
-                      onUpdateGap={(idx, text) => handleUpdateFeedbackItem('gap', idx, text)}
-                      onUpdateImprovement={(idx, text) => handleUpdateFeedbackItem('improvement', idx, text)}
-                      onUpdateSuggestion={(idx, text) => handleUpdateFeedbackItem('suggestion', idx, text)}
-                      onUpdateOverallSummary={(text) => store.updateOverallSummary(selectedSubId, text)}
-                      onUpdatePersonalNote={(text) => store.updatePersonalNote(selectedSubId, text)}
-                      onAddItem={handleAddFeedbackItem}
-                      onRemoveItem={handleRemoveFeedbackItem}
-                      onLinkEvidence={handleLinkEvidence}
-                      selectedHighlightId={selectedHighlightId}
-                    />
-                  </div>
-                  
-                  {/* Bottom Action Bar */}
-                  <div className="p-3 border-t border-border/40 bg-surface/50">
-                    <div className="flex gap-3">
-                      <select
-                        value={scheduleType}
-                        onChange={(e) => setScheduleType(e.target.value as ReleaseSchedule['type'])}
-                        className="px-3 py-2 rounded-lg border border-border/50 text-sm bg-surface"
-                      >
-                        <option value="immediate">Release Now</option>
-                        <option value="scheduled">Schedule</option>
-                        <option value="manual">Hold</option>
-                      </select>
-                      <Button
-                        onPress={() => store.approveFeedback(selectedSubId)}
-                        variant="secondary"
-                        className="flex-1"
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        onPress={handlePublish}
-                        isDisabled={isPublishing || selectedSub.feedbackGenerationState !== 'approved'}
-                        className="flex-1 bg-accent text-white font-semibold"
-                      >
-                        {isPublishing ? 'Publishing...' : 'Publish'}
-                      </Button>
+
+                  {/* Column 2: Rubric Panel */}
+                  <div className="w-1/4 border-r border-border/40 flex flex-col">
+                    <div className="p-3 border-b border-border/40">
+                      <h4 className="font-semibold text-sm text-foreground">Rubric</h4>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <RubricPanel
+                        rubric={assignment.rubricSnapshot}
+                        criteria={selectedSub.criteria}
+                      />
                     </div>
                   </div>
-                </div>
-              </>
-            ) : (
-              /* Setup State - No feedback yet */
-              <div className="flex-1 flex items-center justify-center p-8">
-                {showSetup ? (
-                  <FeedbackSetupPanel
-                    onStartGeneration={handleStartGeneration}
-                    onCancel={() => setShowSetup(false)}
-                  />
-                ) : (
-                  <div className="text-center max-w-md">
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="size-16 rounded-full bg-accent/10 border border-accent/20 text-accent flex items-center justify-center mb-4 mx-auto"
-                    >
-                      <Sparkles className="size-8" />
-                    </motion.div>
-                    <h3 className="text-xl font-bold text-foreground mb-2">
-                      Generate Feedback for {selectedSub.studentName}
-                    </h3>
-                    <p className="text-muted mb-6">
-                      AI will analyze the rubric scores and submission content to create personalized feedback.
-                    </p>
-                    <Button
-                      onPress={() => setShowSetup(true)}
-                      className="bg-accent text-white font-semibold px-6"
-                    >
-                      Configure & Generate
-                    </Button>
+
+                  {/* Column 3: Feedback Editor */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="p-3 border-b border-border/40 flex justify-between items-center">
+                      <h4 className="font-semibold text-sm text-foreground">Feedback Editor</h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowRefinement(true)}
+                          className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1 touch-target-min"
+                        >
+                          <Sparkles className="size-3" />
+                          Refine
+                        </button>
+                        <button
+                          onClick={() => setShowPreview(true)}
+                          className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1 touch-target-min"
+                        >
+                          <Eye className="size-3" />
+                          Preview
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <FeedbackEditor
+                        feedback={feedback}
+                        highlights={feedback.highlights || []}
+                        linkedEvidence={feedback.linkedEvidence || []}
+                        onUpdateStrength={(idx, text) => handleUpdateFeedbackItem('strength', idx, text)}
+                        onUpdateGap={(idx, text) => handleUpdateFeedbackItem('gap', idx, text)}
+                        onUpdateImprovement={(idx, text) => handleUpdateFeedbackItem('improvement', idx, text)}
+                        onUpdateSuggestion={(idx, text) => handleUpdateFeedbackItem('suggestion', idx, text)}
+                        onUpdateOverallSummary={(text) => store.updateOverallSummary(selectedSubId, text)}
+                        onUpdatePersonalNote={(text) => store.updatePersonalNote(selectedSubId, text)}
+                        onAddItem={handleAddFeedbackItem}
+                        onRemoveItem={handleRemoveFeedbackItem}
+                        onLinkEvidence={handleLinkEvidence}
+                        selectedHighlightId={selectedHighlightId}
+                      />
+                    </div>
+                    
+                    {/* Bottom Action Bar */}
+                    <div className="p-3 border-t border-border/40 bg-surface/50">
+                      <div className="flex gap-3">
+                        <select
+                          value={scheduleType}
+                          onChange={(e) => setScheduleType(e.target.value as ReleaseSchedule['type'])}
+                          className="px-3 py-2 rounded-lg border border-border/50 text-sm bg-surface"
+                        >
+                          <option value="immediate">Release Now</option>
+                          <option value="scheduled">Schedule</option>
+                          <option value="manual">Hold</option>
+                        </select>
+                        <Button
+                          onPress={() => store.approveFeedback(selectedSubId)}
+                          variant="secondary"
+                          className="flex-1"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          onPress={handlePublish}
+                          isDisabled={isPublishing || selectedSub.feedbackGenerationState !== 'approved'}
+                          className="flex-1 bg-accent text-white font-semibold"
+                        >
+                          {isPublishing ? 'Publishing...' : 'Publish'}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+                </>
+              ) : (
+                /* Setup State - No feedback yet */
+                <div className="flex-1 flex items-center justify-center p-8">
+                  {showSetup ? (
+                    <FeedbackSetupPanel
+                      onStartGeneration={handleStartGeneration}
+                      onCancel={() => setShowSetup(false)}
+                    />
+                  ) : (
+                    <div className="text-center max-w-md">
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="size-16 rounded-full bg-accent/10 border border-accent/20 text-accent flex items-center justify-center mb-4 mx-auto"
+                      >
+                        <Sparkles className="size-8" />
+                      </motion.div>
+                      <h3 className="text-xl font-bold text-foreground mb-2">
+                        Generate Feedback for {selectedSub.studentName}
+                      </h3>
+                      <p className="text-muted mb-6">
+                        AI will analyze the rubric scores and submission content to create personalized feedback.
+                      </p>
+                      <Button
+                        onPress={() => setShowSetup(true)}
+                        className="bg-accent text-white font-semibold px-6"
+                      >
+                        Configure & Generate
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Mobile: Tab-Based Layout */}
+            <div className="flex-1 flex flex-col lg:hidden">
+              {feedback ? (
+                <>
+                  {/* Mobile Tab Bar */}
+                  <div className="flex border-b border-border/40 bg-surface/50">
+                    {[
+                      { id: 'submissions', label: 'Students', icon: ListUl },
+                      { id: 'paper', label: 'Paper', icon: FileText },
+                      { id: 'rubric', label: 'Rubric', icon: FileText },
+                      { id: 'feedback', label: 'Feedback', icon: Eye },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setMobileTab(tab.id as MobileTab)}
+                          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 touch-target-min transition-colors
+                            ${mobileTab === tab.id 
+                              ? 'text-accent bg-accent/5' 
+                              : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                          {mobileTab === tab.id && (
+                            <span className="absolute top-0 w-full h-0.5 bg-accent" />
+                          )}
+                          <Icon className="size-4" />
+                          <span className="text-[10px] font-medium">{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mobile Tab Content */}
+                  <div className="flex-1 overflow-hidden">
+                    {/* Submissions Tab */}
+                    {mobileTab === 'submissions' && (
+                      <div className="h-full overflow-y-auto p-2 space-y-1">
+                        {submissions.map((sub) => {
+                          const chip = getStatusChip(sub);
+                          return (
+                            <button
+                              key={sub.id}
+                              onClick={() => {
+                                setSelectedSubId(sub.id);
+                                setMobileTab('paper');
+                              }}
+                              className={`w-full text-left p-3 rounded-lg transition-colors touch-target-min ${
+                                selectedSubId === sub.id 
+                                  ? "bg-accent/10 border border-accent/30" 
+                                  : "hover:bg-default/40 border border-transparent"
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-medium text-sm text-foreground">{sub.studentName}</p>
+                                  <p className="text-xs text-muted font-mono">{sub.paperId}</p>
+                                </div>
+                                {chip && (
+                                  <Chip size="sm" variant="soft" color={chip.color} className="text-[10px] border-none h-5">
+                                    {chip.label}
+                                  </Chip>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Paper Tab */}
+                    {mobileTab === 'paper' && (
+                      <div className="h-full overflow-y-auto">
+                        <div className="p-3 border-b border-border/40 flex justify-between items-center">
+                          <h4 className="font-semibold text-sm text-foreground">{selectedSub.studentName}</h4>
+                          <span className="text-xs text-muted">{selectedSub.paperId}</span>
+                        </div>
+                        <div className="p-4">
+                          <SubmissionViewer
+                            content={selectedSub.ocrContent}
+                            highlights={feedback.highlights || []}
+                            selectedHighlightId={selectedHighlightId}
+                            onHighlightClick={setSelectedHighlightId}
+                            onTextSelect={(start, end, text) => {
+                              console.log('Text selected:', { start, end, text });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rubric Tab */}
+                    {mobileTab === 'rubric' && (
+                      <div className="h-full overflow-y-auto">
+                        <div className="p-3 border-b border-border/40">
+                          <h4 className="font-semibold text-sm text-foreground">Rubric</h4>
+                        </div>
+                        <div className="p-4">
+                          <RubricPanel
+                            rubric={assignment.rubricSnapshot}
+                            criteria={selectedSub.criteria}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Feedback Tab */}
+                    {mobileTab === 'feedback' && (
+                      <div className="h-full flex flex-col">
+                        <div className="p-3 border-b border-border/40 flex justify-between items-center">
+                          <h4 className="font-semibold text-sm text-foreground">Feedback</h4>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowRefinement(true)}
+                              className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1 touch-target-min"
+                            >
+                              <Sparkles className="size-3" />
+                            </button>
+                            <button
+                              onClick={() => setShowPreview(true)}
+                              className="text-xs px-3 py-1.5 rounded border border-border/50 hover:border-accent text-foreground flex items-center gap-1 touch-target-min"
+                            >
+                              <Eye className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <FeedbackEditor
+                            feedback={feedback}
+                            highlights={feedback.highlights || []}
+                            linkedEvidence={feedback.linkedEvidence || []}
+                            onUpdateStrength={(idx, text) => handleUpdateFeedbackItem('strength', idx, text)}
+                            onUpdateGap={(idx, text) => handleUpdateFeedbackItem('gap', idx, text)}
+                            onUpdateImprovement={(idx, text) => handleUpdateFeedbackItem('improvement', idx, text)}
+                            onUpdateSuggestion={(idx, text) => handleUpdateFeedbackItem('suggestion', idx, text)}
+                            onUpdateOverallSummary={(text) => store.updateOverallSummary(selectedSubId, text)}
+                            onUpdatePersonalNote={(text) => store.updatePersonalNote(selectedSubId, text)}
+                            onAddItem={handleAddFeedbackItem}
+                            onRemoveItem={handleRemoveFeedbackItem}
+                            onLinkEvidence={handleLinkEvidence}
+                            selectedHighlightId={selectedHighlightId}
+                          />
+                        </div>
+                        
+                        {/* Mobile Action Bar - Fixed above bottom nav */}
+                        <div className="p-3 border-t border-border/40 bg-surface/50">
+                          <div className="flex gap-2">
+                            <select
+                              value={scheduleType}
+                              onChange={(e) => setScheduleType(e.target.value as ReleaseSchedule['type'])}
+                              className="px-3 py-2 rounded-lg border border-border/50 text-sm bg-surface flex-1"
+                            >
+                              <option value="immediate">Release Now</option>
+                              <option value="scheduled">Schedule</option>
+                              <option value="manual">Hold</option>
+                            </select>
+                            <Button
+                              onPress={() => store.approveFeedback(selectedSubId)}
+                              variant="secondary"
+                              className="flex-1 text-xs"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              onPress={handlePublish}
+                              isDisabled={isPublishing || selectedSub.feedbackGenerationState !== 'approved'}
+                              className="flex-1 bg-accent text-white font-semibold text-xs"
+                            >
+                              {isPublishing ? '...' : 'Publish'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* Mobile Setup State - No feedback yet */
+                <div className="flex-1 flex items-center justify-center p-8">
+                  {showSetup ? (
+                    <FeedbackSetupPanel
+                      onStartGeneration={handleStartGeneration}
+                      onCancel={() => setShowSetup(false)}
+                    />
+                  ) : (
+                    <div className="text-center max-w-md">
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="size-16 rounded-full bg-accent/10 border border-accent/20 text-accent flex items-center justify-center mb-4 mx-auto"
+                      >
+                        <Sparkles className="size-8" />
+                      </motion.div>
+                      <h3 className="text-lg font-bold text-foreground mb-2">
+                        Generate Feedback for {selectedSub.studentName}
+                      </h3>
+                      <p className="text-muted mb-6 text-sm">
+                        AI will analyze the rubric scores and submission content to create personalized feedback.
+                      </p>
+                      <Button
+                        onPress={() => setShowSetup(true)}
+                        className="bg-accent text-white font-semibold px-6"
+                      >
+                        Configure & Generate
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
