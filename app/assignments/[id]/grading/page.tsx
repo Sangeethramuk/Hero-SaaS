@@ -133,17 +133,17 @@ export default function GradingView() {
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Grading Queue</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Grading Queue</h1>
             <p className="mt-1 text-sm text-muted">
               {submissions.length} submissions in queue · {submissions.filter(s => s.status === "Approved").length} approved
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
             {strongUnreviewedCount > 0 && (
-              <div className="relative group">
+              <div className="relative group hidden sm:block">
                 <Button
                   size="sm"
-                  className="bg-success/10 text-success border border-success/30 font-medium rounded-lg hover:bg-success/20 transition-colors"
+                  className="bg-success/10 text-success border border-success/30 font-medium rounded-lg hover:bg-success/20 transition-colors whitespace-nowrap"
                   onPress={selectAllStrong}
                 >
                   Select All Strong ({strongUnreviewedCount})
@@ -155,11 +155,11 @@ export default function GradingView() {
                 </div>
               </div>
             )}
-            <div className="relative">
+            <div className="relative flex-1 md:flex-none">
               <Magnifier className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted pointer-events-none" />
               <input
                 placeholder="Search student or ID..."
-                className="pl-8 pr-4 py-2 text-sm bg-surface border border-border/50 rounded-lg text-foreground placeholder:text-muted outline-none focus:border-accent/50 transition-colors w-56"
+                className="pl-8 pr-4 py-2 text-sm bg-surface border border-border/50 rounded-lg text-foreground placeholder:text-muted outline-none focus:border-accent/50 transition-colors w-full md:w-56"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -168,15 +168,15 @@ export default function GradingView() {
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-          <span className="text-xs font-semibold text-muted uppercase tracking-wider w-16">Status:</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wider sm:w-16 shrink-0">Status:</span>
           <div className="flex flex-wrap gap-2">
             {(["All", "Needs Review", "Evaluating", "Approved"] as StatusFilter[]).map(mode => (
               <Button
                 key={mode}
                 variant={filterMode === mode ? "primary" : "ghost"}
                 size="sm"
-                className={`rounded-lg font-medium px-4 ${
+                className={`rounded-lg font-medium px-3 sm:px-4 text-xs sm:text-sm touch-target-min ${
                   filterMode === mode
                     ? mode === "Needs Review" ? "bg-warning text-warning-foreground shadow-md shadow-warning/20"
                     : mode === "Approved" ? "bg-success text-success-foreground shadow-md shadow-success/20"
@@ -194,14 +194,14 @@ export default function GradingView() {
         </div>
 
         {/* Confidence Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <span className="text-xs font-semibold text-muted uppercase tracking-wider w-16">Confidence:</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wider sm:w-16 shrink-0">Confidence:</span>
           <div className="flex flex-wrap gap-2">
             {(["All", "Minimal", "Weak", "Partial", "Strong"] as ConfidenceFilter[]).map(level => (
               <button
                 key={level}
                 onClick={() => setConfidenceFilter(level)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border touch-target-min ${
                   confidenceFilter === level
                     ? level === "Minimal" ? "bg-danger/10 border-danger/30 text-danger"
                     : level === "Weak" ? "bg-warning/10 border-warning/30 text-warning-600"
@@ -365,7 +365,7 @@ export default function GradingView() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
             transition={{ type: "spring", damping: 22, stiffness: 250 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] bg-surface border border-border/60 shadow-2xl rounded-2xl px-6 py-4 flex items-center gap-6"
+            className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[150] bg-surface border border-border/60 shadow-2xl rounded-2xl px-4 md:px-6 py-3 md:py-4 flex items-center gap-4 md:gap-6 max-w-[90vw] md:max-w-none"
           >
             <div className="flex items-center gap-2">
               <div className="size-8 rounded-full bg-accent/10 flex items-center justify-center">
