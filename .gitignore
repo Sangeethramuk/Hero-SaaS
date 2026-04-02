@@ -1,0 +1,15 @@
+# Build artifacts
+.next/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Cache
+.tmp_*
+
+# IDE
+.claude/
+
+# OS
+.DS_Store

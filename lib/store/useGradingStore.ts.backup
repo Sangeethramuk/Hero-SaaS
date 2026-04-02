@@ -1,0 +1,709 @@
+import { create } from 'zustand';
+
+// ─── INTERFACES ────────────────────────────────────────────────────────────────
+
+export interface OverrideRecord {
+  criterionId: string;
+  criterionTitle: string;
+  originalScore: number;
+  newScore: number;
+  reasonCode: 'ocr' | 'missed' | 'interpretation' | 'benefit';
+  reasonLabel: string;
+  instructorId: string;
+  timestamp: string;
+}
+
+export interface AntiCheatingFlags {
+  flagged: boolean;
+  similarityScore: number;
+  similarSubmissionId?: string;
+}
+
+export interface ReleaseSchedule {
+  type: 'immediate' | 'scheduled' | 'manual';
+  scheduledAt?: string;
+}
+
+export interface SessionState {
+  lastOpenedSubmissionId: string | null;
+  savedAt: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  targetSubmissionId: string;
+  targetLabel: string;
+  details: string;
+  actionColor: 'warning' | 'success' | 'danger' | 'default';
+}
+
+export interface Criterion {
+  id: string;
+  title: string;
+  score: number;
+  maxScore: number;
+  originalAiScore: number;
+  confidence: string;
+  confidenceColor: "success" | "warning" | "danger" | "accent" | "default";
+  evidence: string;
+  rationale: string;
+  isOverridden?: boolean;
+  overrideHistory: OverrideRecord[];
+}
+
+export interface Feedback {
+  strengths: string[];
+  gaps: string[];
+  improvements: string[];
+  tone: "Constructive" | "Direct" | "Encouraging";
+  isReleased: boolean;
+  releaseSchedule: ReleaseSchedule;
+}
+
+export interface Appeal {
+  id: string;
+  status: "Pending" | "Reviewed" | "Resolved";
+  studentArgument: string;
+  date: string;
+  aiTriage: 'Likely Valid' | 'Unlikely Valid' | 'Needs Instructor Review';
+  criterionDisputed: string;
+}
+
+export interface Submission {
+  id: string;
+  paperId: string;
+  studentName: string;
+  submittedAt: string;
+  status: "Evaluating" | "Needs Review" | "Approved";
+  criteria: Criterion[];
+  feedback?: Feedback;
+  appeal?: Appeal;
+  antiCheatingFlags: AntiCheatingFlags;
+  ocrContent: string;
+  scenarioTag: string;
+}
+
+export interface GradingStore {
+  batchId: string;
+  batchName: string;
+  totalSubmissions: number;
+  submissions: Record<string, Submission>;
+  sessionState: SessionState;
+  auditLog: AuditLogEntry[];
+
+  getProcessedCount: () => number;
+  getSubmissionList: () => Submission[];
+
+  overrideScore: (
+    submissionId: string,
+    criterionId: string,
+    newScore: number,
+    reasonCode: OverrideRecord['reasonCode'],
+    instructorId: string
+  ) => void;
+  approveSubmission: (submissionId: string) => void;
+  updateFeedbackTone: (submissionId: string, tone: Feedback["tone"]) => void;
+  updateFeedbackText: (
+    submissionId: string,
+    type: keyof Omit<Feedback, "tone" | "isReleased" | "releaseSchedule">,
+    index: number,
+    text: string
+  ) => void;
+  releaseFeedback: (submissionId: string) => void;
+  scheduleFeedbackRelease: (submissionId: string, schedule: ReleaseSchedule) => void;
+  resolveAppeal: (submissionId: string, resolution: "Uphold" | "Reject" | "Partial") => void;
+  setSessionState: (partial: Partial<SessionState>) => void;
+  bulkApproveSubmissions: (submissionIds: string[]) => void;
+}
+
+// ─── REASON LABELS ─────────────────────────────────────────────────────────────
+
+const REASON_LABELS: Record<OverrideRecord['reasonCode'], string> = {
+  ocr: 'OCR / Handwriting Illegible',
+  missed: 'Evidence Missed by AI Engine',
+  interpretation: 'Differing Interpretation of Rubric',
+  benefit: 'Benefit of the Doubt',
+};
+
+// ─── MOCK SUBMISSIONS ──────────────────────────────────────────────────────────
+
+const MOCK_SUBMISSIONS: Record<string, Submission> = {
+
+  // S1 — Standard high-confidence batch (bulk approve path)
+  "sub-1": {
+    id: "sub-1",
+    paperId: "ECO-047",
+    studentName: "Ravi Kumar",
+    submittedAt: "2 hours ago",
+    status: "Needs Review",
+    scenarioTag: "S1 — Standard Batch, High Confidence",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Ravi Kumar  |  Roll No: 2024BBA-047  |  Paper ID: ECO-047
+
+Q1. Define Keynesian Economics:
+Keynesian economics is a macroeconomic theory developed by John Maynard Keynes during the Great Depression. The central premise is that aggregate demand — the total spending in an economy — is the primary driver of output and employment. Unlike classical economists who believed markets self-correct, Keynes argued that government intervention can stabilise the economy during downturns by increasing aggregate demand through fiscal policy: increased public expenditure and tax reductions.
+
+Q2. Explain the Law of Diminishing Returns:
+The Law of Diminishing Returns states that as one input factor in production is incrementally increased while holding all other factors constant, the marginal output per additional unit will eventually decrease. If a factory employs progressively more workers but the machinery and floor space remain fixed, each additional worker contributes less to total output due to overcrowding and shared resources.
+
+Q3. What is Price Elasticity of Demand?
+Price Elasticity of Demand (PED) measures the responsiveness of quantity demanded to a change in price, ceteris paribus. PED = (% Change in Quantity Demanded) ÷ (% Change in Price). When |PED| > 1 demand is elastic; when |PED| < 1 it is inelastic. Luxury goods and goods with close substitutes tend to be highly elastic.
+
+Q4. Explain Monetary Policy Mechanisms:
+Monetary policy involves central bank actions to manage money supply and interest rates. The RBI uses instruments such as the repo rate, reverse repo rate, and Cash Reserve Ratio (CRR). Raising the repo rate makes borrowing costlier, reducing money supply and cooling inflation. Open market operations involve buying or selling government securities to adjust liquidity.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "government intervention can stabilise the economy during downturns by increasing aggregate demand through fiscal policy", rationale: "Student correctly identified the aggregate demand mechanism and role of fiscal policy during recessions.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "holding all other factors constant, the marginal output per additional unit will eventually decrease", rationale: "Correct statement of the law with the critical 'ceteris paribus' condition explicitly mentioned.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "PED = (% Change in Quantity Demanded) ÷ (% Change in Price). When |PED| > 1 demand is elastic", rationale: "Correct formula and interpretation. Deducted 1 mark as income elasticity cross-reference was not discussed.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "RBI uses instruments such as the repo rate, reverse repo rate, and Cash Reserve Ratio (CRR)", rationale: "Comprehensive coverage of RBI tools with correct directional logic for inflation control.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Exceptional grasp of Keynesian aggregate demand mechanics with accurate policy implications.", "Precise application of the Law of Diminishing Returns — the ceteris paribus condition was explicitly stated."],
+      gaps: ["PED answer lacked a worked numerical example and did not discuss income elasticity.", "Monetary policy section could have elaborated on transmission mechanisms to real GDP."],
+      improvements: ["Practice solving PED problems with actual price-quantity data.", "Review Chapter 8 on IS-LM models for a more integrated macroeconomic analysis.", "Connect each RBI instrument explicitly to its inflation or growth targeting objective."],
+      tone: "Constructive", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S3 — OCR Misread Override (Criterion 2 degraded due to handwriting smudge)
+  "sub-2": {
+    id: "sub-2",
+    paperId: "ECO-023",
+    studentName: "Meena Iyer",
+    submittedAt: "3 hours ago",
+    status: "Needs Review",
+    scenarioTag: "S3 — OCR Misread Override",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Meena Iyer  |  Roll No: 2024BBA-023  |  Paper ID: ECO-023
+
+Q1. Define Keynesian Economics:
+Keynesian economics is founded on the principle that in the short run, especially during recessions, government policies can stabilise output and employment. The government can intervene by increasing public expenditure to stimulate aggregate demand and prevent prolonged downturns. Keynes believed that markets are not always self-correcting in the short run and that sticky wages amplify recessionary spirals.
+
+Q2. Explain the Law of Diminishing Returns:
+⚠ OCR CONFIDENCE: LOW (43%) — Handwriting heavily smudged on this page.
+Partial extraction only. Text below may contain errors.
+─────────────────────────────────────────
+...when you add m[ore] wor[kers] to [a] fact[ory]... produc[tion] go[es] d[own]...
+sp[ace] is lim[ited]... [holding oth]er fact[ors con]stant...
+─────────────────────────────────────────
+⚠ Switch to "Original Scan" tab to view the full handwritten content for this criterion.
+
+Q3. What is Price Elasticity of Demand?
+Price elasticity of demand measures how much the quantity demanded changes when price changes. A product is elastic when consumers are very sensitive to price changes, and inelastic when they are not. The formula is: percentage change in quantity demanded divided by percentage change in price.
+
+Q4. Explain Monetary Policy Mechanisms:
+The central bank controls monetary policy by adjusting interest rates. When inflation rises, the RBI increases the repo rate to make borrowing more expensive, which reduces money supply and cools consumer spending. Quantitative tightening involves selling securities in open market operations.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "government can intervene by increasing public expenditure to stimulate aggregate demand and prevent prolonged downturns", rationale: "Solid definition. Minor deduction as the multiplier effect was not discussed.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 4, maxScore: 5, originalAiScore: 1, confidence: "Minimal", confidenceColor: "danger", evidence: "...when you add m[ore] wor[kers]... produc[tion] go[es] d[own]... sp[ace] is lim[ited]...", rationale: "OCR confidence critically low (43%). Only fragmented text recovered. Score assigned on partial evidence — review original scan before finalising.", isOverridden: true, overrideHistory: [{ criterionId: "q2", criterionTitle: "2. Law of Diminishing Returns", originalScore: 1, newScore: 4, reasonCode: 'ocr', reasonLabel: 'OCR / Handwriting Illegible', instructorId: 'prof-sk', timestamp: '2026-04-02T14:05:22.000Z' }] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 3, maxScore: 5, originalAiScore: 3, confidence: "Partial", confidenceColor: "accent", evidence: "percentage change in quantity demanded divided by percentage change in price", rationale: "Correct formula mentioned but no numerical example provided and determinants of elasticity were not covered.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "RBI increases the repo rate to make borrowing more expensive, which reduces money supply and cools consumer spending", rationale: "Correct directional logic for RBI rate hike. Open market operations mentioned correctly.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Strong conceptual grasp of Keynesian government intervention and its demand-side rationale.", "Monetary policy answer shows clear understanding of RBI's transmission mechanism."],
+      gaps: ["Diminishing returns explanation was severely impacted by OCR extraction failure — the original handwritten answer may be more complete.", "PED answer lacks numerical illustration and omits key determinants such as availability of substitutes."],
+      improvements: ["For Q2 — if your written answer was more detailed, please contact the instructor or submit via the resubmission portal.", "Practice the Law of Diminishing Returns with a worked production schedule table.", "Include India-specific examples when discussing RBI instruments."],
+      tone: "Encouraging", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S4 — Strong Confidence but WRONG (Trust Breach scenario)
+  "sub-3": {
+    id: "sub-3",
+    paperId: "ECO-031",
+    studentName: "Arjun Seth",
+    submittedAt: "2 hours ago",
+    status: "Needs Review",
+    scenarioTag: "S4 — Strong Confidence but Wrong (Trust Breach)",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Arjun Seth  |  Roll No: 2024BBA-031  |  Paper ID: ECO-031
+
+Q1. Define Keynesian Economics:
+Keynesian economics is a macroeconomic model that advocates for active government and central bank intervention to stabilise national output during economic cycles. The key mechanism is stimulating aggregate demand through fiscal and monetary policy, which Keynes argued was necessary because wages and prices are not perfectly flexible in the short run due to contracts and menu costs.
+
+Q2. Explain the Law of Diminishing Returns:
+The law states that as more of a variable input is added to a fixed input, marginal product will eventually decline. If a farm has 10 acres of land and we keep adding farmers, the first farmer is highly productive, but the 20th farmer adds very little because the fixed land is already fully utilised. The key condition is ceteris paribus — all other factors must remain constant.
+
+Q3. What is Price Elasticity of Demand?
+When producers increase their selling prices, they are more willing to supply greater quantities to the market in order to maximise their profit margins. Firms with lower production costs can respond more flexibly to price signals and scale up output accordingly. The elasticity of supply depends heavily on production lead times, capacity utilisation, and the availability of raw materials.
+
+Q4. Explain Monetary Policy Mechanisms:
+The RBI adjusts repo and reverse repo rates to control liquidity in the banking system. Quantitative easing through open market operations allows the central bank to inject money directly into the economy by purchasing government securities, thereby lowering long-term interest rates and stimulating investment.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "stimulating aggregate demand through fiscal and monetary policy, which Keynes argued was necessary because wages and prices are not perfectly flexible", rationale: "Accurate and detailed definition citing wage-price stickiness as the core Keynesian justification.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "as more of a variable input is added to a fixed input, marginal product will eventually decline... ceteris paribus — all other factors must remain constant", rationale: "Exemplary answer. Ceteris paribus condition stated, marginal product framing correct, illustrated with a concrete example.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 0, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "elasticity of supply depends heavily on production lead times, capacity utilisation, and the availability of raw materials", rationale: "AI matched 'elasticity' keyword with high confidence, but student answered PES (supply) instead of PED (demand).", isOverridden: true, overrideHistory: [{ criterionId: "q3", criterionTitle: "3. Price Elasticity of Demand", originalScore: 5, newScore: 0, reasonCode: 'interpretation', reasonLabel: 'Differing Interpretation of Rubric', instructorId: 'prof-sk', timestamp: '2026-04-02T13:45:10.000Z' }] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "RBI adjusts repo and reverse repo rates to control liquidity... open market operations allows the central bank to inject money by purchasing government securities", rationale: "Correct description of RBI tools. Minor deduction for not addressing CRR or SLR.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Excellent definitions for Keynesian economics and the Law of Diminishing Returns.", "Monetary policy section demonstrates strong understanding of RBI's liquidity management tools."],
+      gaps: ["Q3 answer describes supply elasticity, not price elasticity of demand — these are fundamentally different concepts.", "The PED formula (% ΔQd / % ΔP) was not provided."],
+      improvements: ["Revisit Chapter 5: carefully distinguish Price Elasticity of Demand (PED) from Price Elasticity of Supply (PES).", "Practice identifying whether a question asks for demand-side or supply-side analysis from the question wording.", "Always provide the formula when asked about elasticity concepts."],
+      tone: "Constructive", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S12 — Anti-Cheating Flag (Fatima & Rahul, 87% similarity)
+  "sub-4": {
+    id: "sub-4",
+    paperId: "ECO-058",
+    studentName: "Fatima Khan",
+    submittedAt: "1 hour ago",
+    status: "Needs Review",
+    scenarioTag: "S12 — Academic Integrity Flag (87% similarity)",
+    antiCheatingFlags: { flagged: true, similarityScore: 87, similarSubmissionId: "sub-5" },
+    ocrContent: `Student: Fatima Khan  |  Roll No: 2024BBA-058  |  Paper ID: ECO-058
+
+Q1. Define Keynesian Economics:
+Keynesian economics argues that aggregate demand is the main driver of economic growth and employment. The government should use fiscal policy — spending and taxation — to manage demand during recessions and prevent persistent unemployment. Keynes disagreed with laissez-faire economics and said that markets can fail to self-correct, especially during deep downturns.
+
+Q2. Explain the Law of Diminishing Returns:
+The law of diminishing returns applies when one factor of production is increased while others remain fixed. Adding more workers to a factory with fixed machinery will initially raise output, but each new worker eventually adds less than the previous one. This happens because workers begin to get in each other's way and share limited equipment.
+
+Q3. What is Price Elasticity of Demand?
+When a firm raises the price of its product, the quantity demanded by consumers tends to fall. The degree to which demand falls depends on how sensitive consumers are to price changes. Necessities like medicine tend to be inelastic because consumers still need them even at higher prices, while luxury goods are more elastic.
+
+Q4. Explain Monetary Policy Mechanisms:
+Monetary policy is controlled by the central bank to regulate money supply and economic activity. The RBI uses the repo rate and reverse repo rate as primary instruments. When the economy is overheating, the RBI raises the repo rate to reduce lending and bring down inflation. The CRR determines what fraction of deposits banks must hold in reserve.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "government should use fiscal policy — spending and taxation — to manage demand during recessions and prevent persistent unemployment", rationale: "Good understanding of fiscal policy transmission. Deducted 1 mark for not mentioning aggregate demand explicitly.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "adding more workers to a factory with fixed machinery... each new worker eventually adds less than the previous one", rationale: "Correct intuition with a good example. Ceteris paribus not explicitly stated.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "Necessities like medicine tend to be inelastic... luxury goods are more elastic", rationale: "Correct elastic/inelastic distinction. Formula not provided — 1 mark deducted.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "RBI raises the repo rate to reduce lending and bring down inflation. The CRR determines what fraction of deposits banks must hold", rationale: "Comprehensive coverage of RBI tools with correct directional logic.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Good practical understanding of Keynesian fiscal policy and its anti-recession role.", "Elasticity examples (medicine vs. luxury) are accurate and well-chosen."],
+      gaps: ["PED answer did not include the elasticity formula.", "Diminishing returns answer did not state the ceteris paribus condition explicitly."],
+      improvements: ["Always include the PED formula: % ΔQd / % ΔP.", "State 'ceteris paribus' explicitly in any law or economic principle.", "Review academic integrity guidelines — this submission has been flagged for similarity review."],
+      tone: "Constructive", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S12 companion — Rahul Verma (flagged with Fatima)
+  "sub-5": {
+    id: "sub-5",
+    paperId: "ECO-062",
+    studentName: "Rahul Verma",
+    submittedAt: "1 hour ago",
+    status: "Needs Review",
+    scenarioTag: "S12 — Academic Integrity Flag (87% similarity)",
+    antiCheatingFlags: { flagged: true, similarityScore: 87, similarSubmissionId: "sub-4" },
+    ocrContent: `Student: Rahul Verma  |  Roll No: 2024BBA-062  |  Paper ID: ECO-062
+
+Q1. Define Keynesian Economics:
+Keynesian economics says that aggregate demand drives economic growth and employment levels. Governments should apply fiscal policy — through public spending and tax changes — to regulate demand in recessions to prevent unemployment from becoming persistent. Keynes challenged laissez-faire theory by showing that markets may fail to self-correct, particularly in severe downturns.
+
+Q2. Explain the Law of Diminishing Returns:
+The law of diminishing returns is observed when one production input increases while others remain constant. Adding workers to a fixed-equipment factory raises output at first, but every additional worker eventually contributes less than the one before. This is because workers start to interfere with each other and must share limited resources.
+
+Q3. What is Price Elasticity of Demand?
+When businesses increase the price of a good, the quantity demanded by buyers tends to decrease. How much it decreases depends on consumer price sensitivity. Essential goods like medicine have inelastic demand since buyers purchase them regardless of price, whereas luxury goods show elastic demand patterns.
+
+Q4. Explain Monetary Policy Mechanisms:
+Monetary policy is managed by the central bank to control money supply and economic conditions. The RBI relies on the repo rate and reverse repo rate as its key tools. To combat inflation, the RBI raises the repo rate to make credit more expensive and slow lending. The CRR specifies the portion of deposits banks are required to keep as reserves.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "Governments should apply fiscal policy — through public spending and tax changes — to regulate demand in recessions", rationale: "Sound explanation of Keynesian fiscal policy. Aggregate demand multiplier effect not discussed.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "every additional worker eventually contributes less than the one before... workers start to interfere with each other and must share limited resources", rationale: "Correct identification of the law. Ceteris paribus not explicitly stated.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "Essential goods like medicine have inelastic demand... luxury goods show elastic demand patterns", rationale: "Same examples as another submission. Formula not provided.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "RBI raises the repo rate to make credit more expensive and slow lending. CRR specifies the portion of deposits banks are required to keep as reserves", rationale: "Accurate RBI tool description. Nearly identical phrasing to another submission flagged for review.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Solid conceptual understanding of Keynesian economics and fiscal policy role.", "Correct elastic/inelastic examples used consistently."],
+      gaps: ["PED formula was not included in the answer.", "This submission has been flagged for academic integrity review — 87% semantic overlap detected with another submission."],
+      improvements: ["Include the PED formula in all elasticity questions.", "Ensure your work is entirely your own — refer to the academic integrity policy.", "Practice stating the ceteris paribus condition when defining economic laws."],
+      tone: "Direct", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S11 — Structured Appeal (Likely Valid triage)
+  "sub-6": {
+    id: "sub-6",
+    paperId: "ECO-041",
+    studentName: "Priya Nair",
+    submittedAt: "4 hours ago",
+    status: "Approved",
+    scenarioTag: "S11 — Structured Appeal (AI Triage: Likely Valid)",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Priya Nair  |  Roll No: 2024BBA-041  |  Paper ID: ECO-041
+
+Q1. Define Keynesian Economics:
+Keynesian economics holds that aggregate demand is the primary determinant of economic output in the short run. When private sector demand falls, as in a recession, government expenditure can compensate by increasing total demand. This is the basis of counter-cyclical fiscal policy — spending more during downturns and consolidating during booms.
+
+Q2. Explain the Law of Diminishing Returns:
+The Law of Diminishing Returns states that when one factor of production increases while all others remain fixed, the additional output generated per unit of the variable factor will eventually fall. I applied this to a textile factory: hiring 10 more workers on a fixed loom setup initially doubled throughput, but by the 15th worker the increase was marginal because the looms were already at full utilisation. The critical variable is the ceteris paribus condition on the fixed factors.
+
+Q3. What is Price Elasticity of Demand?
+PED = percentage change in quantity demanded / percentage change in price. If PED > 1, demand is elastic; if < 1, it is inelastic. Demand is typically more elastic when there are close substitutes, when the good is a luxury, or when consumers have more time to adjust. For example, petrol is inelastic in the short run but more elastic over 6 months as consumers switch to alternatives.
+
+Q4. Explain Monetary Policy Mechanisms:
+The Reserve Bank of India conducts monetary policy through the Monetary Policy Committee. Primary tools include the repo rate (rate at which banks borrow from RBI), reverse repo rate (rate RBI borrows from banks), CRR, SLR, and open market operations. A rate increase reduces lending and controls demand-pull inflation.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "government expenditure can compensate by increasing total demand... basis of counter-cyclical fiscal policy", rationale: "Excellent answer introducing counter-cyclical policy framing.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 2, maxScore: 5, originalAiScore: 2, confidence: "Weak", confidenceColor: "warning", evidence: "...hiring 10 more workers on a fixed loom setup initially doubled throughput, but by the 15th worker the increase was marginal...", rationale: "Student provided a correct example but OCR confidence was degraded on the theoretical definition portion. Score based on partial evidence only.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 4, maxScore: 5, originalAiScore: 4, confidence: "Strong", confidenceColor: "success", evidence: "PED = percentage change in quantity demanded / percentage change in price. If PED > 1, demand is elastic", rationale: "Complete and accurate answer with formula, determinants, and a time-based example.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "repo rate, reverse repo rate, CRR, SLR, and open market operations. A rate increase reduces lending and controls demand-pull inflation", rationale: "Comprehensive and accurate listing of all major RBI instruments with correct causal logic.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Outstanding treatment of monetary policy — all five RBI instruments correctly identified.", "Price elasticity answer included formula, determinants, and a time-horizon example."],
+      gaps: ["Law of Diminishing Returns theoretical definition was partially extracted — the ceteris paribus definition framing may have been graded on incomplete evidence."],
+      improvements: ["Ensure handwritten theoretical definitions are written clearly at the start of each answer before examples.", "Consider revising Q2 answer for clarity in future exams.", "Review time-horizon effects on demand elasticity — excellent insight already shown."],
+      tone: "Encouraging", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+    appeal: {
+      id: "app-sub-6",
+      status: "Pending",
+      studentArgument: "Respected Professor,\n\nI am disputing the score of 2/5 on Q2 (Law of Diminishing Returns). My written answer explicitly stated the ceteris paribus condition in the first line: 'when one factor of production increases while all others remain fixed.' I also provided a detailed textile factory example demonstrating the concept correctly.\n\nThe AI feedback mentions 'OCR confidence degraded on the theoretical definition portion' — but the theoretical definition was my very first sentence, written clearly in block letters at the top of the answer.\n\nI respectfully request that the original scan be reviewed for this criterion. I believe the full mark of 5/5 is warranted based on the complete answer.",
+      date: "1 hour ago",
+      aiTriage: "Likely Valid",
+      criterionDisputed: "2. Law of Diminishing Returns",
+    },
+  },
+
+  // S2 — All Minimal Confidence (Confidence Triage scenario)
+  "sub-7": {
+    id: "sub-7",
+    paperId: "ECO-019",
+    studentName: "Siddharth Rao",
+    submittedAt: "2 hours ago",
+    status: "Needs Review",
+    scenarioTag: "S2 — Confidence Triage (All Minimal)",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Siddharth Rao  |  Roll No: 2024BBA-019  |  Paper ID: ECO-019
+
+⚠ OCR NOTE: Submission is handwritten in pencil on unlined paper. Multiple regions have very low OCR confidence. Original scan strongly recommended for all criteria.
+
+Q1. Define Keynesian Economics:
+Ke[ynes] sa[id] [g]overnm[ent] sh[ould] sp[end] m[ore] wh[en] ec[onomy] bad...
+[remainder illegible — OCR confidence: 31%]
+
+Q2. Explain the Law of Diminishing Returns:
+[Page torn at bottom — content partially missing]
+...m[ore] work[ers]... less [output]...
+[OCR confidence: 28% — original scan required]
+
+Q3. What is Price Elasticity of Demand?
+[No text detected for this criterion]
+[OCR confidence: 0% — this page appears to be blank or this question was not attempted]
+
+Q4. Explain Monetary Policy Mechanisms:
+[No text detected for this criterion]
+[OCR confidence: 0% — this page appears to be blank or this question was not attempted]`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 2, maxScore: 5, originalAiScore: 2, confidence: "Minimal", confidenceColor: "danger", evidence: "Ke[ynes] sa[id] [g]overnm[ent] sh[ould] sp[end] m[ore] wh[en] ec[onomy] bad...", rationale: "OCR confidence critically low (31%). Partial text suggests some Keynesian understanding but definition is incomplete. Cannot award full marks on fragmentary evidence.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 1, maxScore: 5, originalAiScore: 1, confidence: "Minimal", confidenceColor: "danger", evidence: "...m[ore] work[ers]... less [output]...", rationale: "Page tear and OCR failure. Only 2 fragmented phrases recovered. Cannot evaluate without original scan.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 0, maxScore: 5, originalAiScore: 0, confidence: "Minimal", confidenceColor: "danger", evidence: "[No evidence found for this criterion]", rationale: "No extractable text detected. This criterion was either left blank or the page was not submitted.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 0, maxScore: 5, originalAiScore: 0, confidence: "Minimal", confidenceColor: "danger", evidence: "[No evidence found for this criterion]", rationale: "No extractable text detected. This criterion was either left blank or the page was not submitted.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Partial evidence suggests basic awareness of Keynesian government spending role.", "Submission was received — student attended and attempted the exam."],
+      gaps: ["Q3 and Q4 have no detectable text — these criteria scored zero due to missing evidence.", "Q1 and Q2 were partially illegible due to OCR extraction failure."],
+      improvements: ["Please use black or dark blue ink for all written exams — pencil on unlined paper is very difficult to OCR.", "Contact the instructor with your original paper for a manual review request.", "Ensure all four questions are attempted before submission."],
+      tone: "Encouraging", isReleased: false,
+      releaseSchedule: { type: 'manual' }
+    },
+  },
+
+  // S15 — Multi-day resume / Feedback Scheduled for Monday
+  "sub-8": {
+    id: "sub-8",
+    paperId: "ECO-055",
+    studentName: "Anjali Das",
+    submittedAt: "Yesterday",
+    status: "Approved",
+    scenarioTag: "S15 — Multi-Day Resume / Feedback Scheduled",
+    antiCheatingFlags: { flagged: false, similarityScore: 0 },
+    ocrContent: `Student: Anjali Das  |  Roll No: 2024BBA-055  |  Paper ID: ECO-055
+
+Q1. Define Keynesian Economics:
+Keynesian economics is a macroeconomic theory that posits effective demand — the total planned expenditure in an economy — drives output, income, and employment. During the Great Depression, Keynes observed that markets could get stuck in equilibrium with high unemployment, contradicting classical theory. His solution: government spending acts as a multiplier, injecting demand that circulates through the economy and generates income multiple times its original value.
+
+Q2. Explain the Law of Diminishing Returns:
+The Law of Diminishing Returns is a short-run production principle stating that as successive units of a variable input are added to fixed inputs, beyond some point the marginal product of the variable input will decrease. Example: a bakery with two ovens adds bakers — the 1st baker doubles output, the 5th baker adds 40% more, but the 9th baker adds only 5% because the ovens are already running at capacity. Ceteris paribus is the critical assumption.
+
+Q3. What is Price Elasticity of Demand?
+PED measures consumer responsiveness to price changes. PED = %ΔQd / %ΔP. A value of –2 means a 10% price rise leads to a 20% fall in demand (elastic). Determinants include: (1) availability of substitutes, (2) proportion of income spent, (3) necessity vs. luxury, (4) time horizon for adjustment. In the Indian context, onion prices are a classic example of inelastic staple demand.
+
+Q4. Explain Monetary Policy Mechanisms:
+The RBI uses six instruments: (1) Repo Rate, (2) Reverse Repo Rate, (3) CRR, (4) SLR, (5) Open Market Operations, (6) Market Stabilisation Scheme. Expansionary policy lowers repo rates to stimulate borrowing. Contractionary policy raises rates to control inflation. During COVID-19, the RBI cut the repo rate from 5.15% to 4.00% to support economic recovery.`,
+    criteria: [
+      { id: "q1", title: "1. Keynesian Economics Definition", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "government spending acts as a multiplier, injecting demand that circulates through the economy and generates income multiple times its original value", rationale: "Exceptional answer — correctly identifies the Keynesian multiplier, explains market failure context, and uses precise terminology.", isOverridden: false, overrideHistory: [] },
+      { id: "q2", title: "2. Law of Diminishing Returns", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "beyond some point the marginal product of the variable input will decrease... Ceteris paribus is the critical assumption", rationale: "Perfect answer with a creative bakery example and explicit ceteris paribus statement.", isOverridden: false, overrideHistory: [] },
+      { id: "q3", title: "3. Price Elasticity of Demand", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "PED = %ΔQd / %ΔP. A value of –2 means a 10% price rise leads to a 20% fall in demand... four determinants listed", rationale: "Complete answer with formula, worked example, four determinants, and an India-specific illustration.", isOverridden: false, overrideHistory: [] },
+      { id: "q4", title: "4. Monetary Policy Mechanisms", score: 5, maxScore: 5, originalAiScore: 5, confidence: "Strong", confidenceColor: "success", evidence: "RBI uses six instruments: Repo Rate, Reverse Repo Rate, CRR, SLR, Open Market Operations, Market Stabilisation Scheme", rationale: "Outstanding — all six RBI instruments listed with correct COVID-19 contextual example.", isOverridden: false, overrideHistory: [] },
+    ],
+    feedback: {
+      strengths: ["Exceptional answer on Keynesian multiplier — demonstrates textbook-level depth.", "Outstanding monetary policy section — all six RBI instruments listed with a real-world pandemic example."],
+      gaps: ["No significant gaps identified — this is a near-perfect submission.", "Minor: the sign convention on PED (negative value) could have been explained."],
+      improvements: ["Consider exploring the IS-LM model to extend Keynesian analysis.", "Explore the relationship between CRR changes and money multiplier effects for deeper mastery.", "Great work overall — maintain this standard."],
+      tone: "Encouraging", isReleased: false,
+      releaseSchedule: { type: 'scheduled', scheduledAt: 'Monday, Apr 7 2026 at 09:00 AM' }
+    },
+  },
+};
+
+// ─── INITIAL AUDIT LOG (seeded for demo) ──────────────────────────────────────
+
+const INITIAL_AUDIT_LOG: AuditLogEntry[] = [
+  { id: "A-920", timestamp: "2026-04-02 14:05:22", actor: "Prof. S. Kumar", action: "Score Override", targetSubmissionId: "sub-2", targetLabel: "ECO-023 (Meena Iyer)", details: "Changed 'Diminishing Returns' from 2→4. Reason: OCR Misread — smudge on Q2 confirmed via original scan.", actionColor: "warning" },
+  { id: "A-921", timestamp: "2026-04-02 13:12:05", actor: "AI Engine", action: "Auto-Grade Complete", targetSubmissionId: "", targetLabel: "Batch ECO-101-MID", details: "Processed 142 submissions. Avg confidence: 0.84. Flagged 2 for integrity review, 1 all-Minimal confidence.", actionColor: "success" },
+  { id: "A-922", timestamp: "2026-04-02 11:05:10", actor: "Prof. S. Kumar", action: "Feedback Scheduled", targetSubmissionId: "sub-8", targetLabel: "ECO-055 (Anjali Das)", details: "Feedback approved. Scheduled release: Monday, Apr 7 2026 at 09:00 AM.", actionColor: "default" },
+  { id: "A-923", timestamp: "2026-04-01 09:14:00", actor: "AI Engine", action: "Integrity Flag", targetSubmissionId: "sub-4", targetLabel: "ECO-058 (Fatima Khan)", details: "87% semantic similarity detected with ECO-062 (Rahul Verma) on Q3 and Q4. Flagged for instructor review.", actionColor: "danger" },
+  { id: "A-924", timestamp: "2026-04-01 08:30:11", actor: "System", action: "Rubric Calibration", targetSubmissionId: "", targetLabel: "Batch ECO-101-MID", details: "Calibration complete. AI aligned to instructor grading model. Delta: 0.12 on Criterion 3 interpretation.", actionColor: "default" },
+];
+
+// ─── STORE ─────────────────────────────────────────────────────────────────────
+
+export const useGradingStore = create<GradingStore>((set, get) => ({
+  batchId: "ECO-101-MID",
+  batchName: "Midterm: Macroeconomics Analysis",
+  totalSubmissions: 142,
+  submissions: MOCK_SUBMISSIONS,
+
+  // Pre-seeded session state for demo: shows "resumed session" banner on dashboard
+  sessionState: {
+    lastOpenedSubmissionId: "sub-2",
+    savedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+  },
+
+  auditLog: INITIAL_AUDIT_LOG,
+
+  getProcessedCount: () => {
+    const subs = Object.values(get().submissions);
+    const approved = subs.filter(s => s.status === "Approved").length;
+    return 120 + approved;
+  },
+
+  getSubmissionList: () => Object.values(get().submissions),
+
+  overrideScore: (submissionId, criterionId, newScore, reasonCode, instructorId) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission) return state;
+
+      const reasonLabel = REASON_LABELS[reasonCode];
+      const now = new Date().toISOString();
+      const criterion = submission.criteria.find(c => c.id === criterionId);
+      if (!criterion) return state;
+
+      const record: OverrideRecord = {
+        criterionId,
+        criterionTitle: criterion.title,
+        originalScore: criterion.originalAiScore,
+        newScore,
+        reasonCode,
+        reasonLabel,
+        instructorId,
+        timestamp: now,
+      };
+
+      const logEntry: AuditLogEntry = {
+        id: `A-${Date.now()}`,
+        timestamp: new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        actor: "Prof. S. Kumar",
+        action: "Score Override",
+        targetSubmissionId: submissionId,
+        targetLabel: `${submission.paperId} (${submission.studentName})`,
+        details: `${criterion.title}: ${criterion.originalAiScore}→${newScore}. Reason: ${reasonLabel}.`,
+        actionColor: "warning",
+      };
+
+      const newCriteria = submission.criteria.map(c =>
+        c.id === criterionId
+          ? { ...c, score: newScore, isOverridden: true, overrideHistory: [...c.overrideHistory, record] }
+          : c
+      );
+
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: { ...submission, criteria: newCriteria },
+        },
+        auditLog: [logEntry, ...state.auditLog],
+      };
+    }),
+
+  approveSubmission: (submissionId) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission) return state;
+
+      const logEntry: AuditLogEntry = {
+        id: `A-${Date.now()}`,
+        timestamp: new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        actor: "Prof. S. Kumar",
+        action: "Submission Approved",
+        targetSubmissionId: submissionId,
+        targetLabel: `${submission.paperId} (${submission.studentName})`,
+        details: `Final score: ${submission.criteria.reduce((a, c) => a + c.score, 0)}/${submission.criteria.reduce((a, c) => a + c.maxScore, 0)}. Approved by instructor.`,
+        actionColor: "success",
+      };
+
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: { ...submission, status: "Approved" },
+        },
+        auditLog: [logEntry, ...state.auditLog],
+      };
+    }),
+
+  updateFeedbackTone: (submissionId, tone) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission?.feedback) return state;
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: { ...submission, feedback: { ...submission.feedback, tone } },
+        },
+      };
+    }),
+
+  updateFeedbackText: (submissionId, type, index, text) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission?.feedback) return state;
+      const newArray = [...submission.feedback[type]];
+      newArray[index] = text;
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: { ...submission, feedback: { ...submission.feedback, [type]: newArray } },
+        },
+      };
+    }),
+
+  releaseFeedback: (submissionId) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission?.feedback) return state;
+
+      const logEntry: AuditLogEntry = {
+        id: `A-${Date.now()}`,
+        timestamp: new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        actor: "Prof. S. Kumar",
+        action: "Feedback Released",
+        targetSubmissionId: submissionId,
+        targetLabel: `${submission.paperId} (${submission.studentName})`,
+        details: `Feedback released immediately. Tone: ${submission.feedback.tone}.`,
+        actionColor: "success",
+      };
+
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: {
+            ...submission,
+            feedback: {
+              ...submission.feedback,
+              isReleased: true,
+              releaseSchedule: { type: 'immediate' },
+            },
+          },
+        },
+        auditLog: [logEntry, ...state.auditLog],
+      };
+    }),
+
+  scheduleFeedbackRelease: (submissionId, schedule) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission?.feedback) return state;
+
+      const logEntry: AuditLogEntry = {
+        id: `A-${Date.now()}`,
+        timestamp: new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        actor: "Prof. S. Kumar",
+        action: "Feedback Scheduled",
+        targetSubmissionId: submissionId,
+        targetLabel: `${submission.paperId} (${submission.studentName})`,
+        details: schedule.type === 'scheduled'
+          ? `Feedback scheduled for release: ${schedule.scheduledAt}.`
+          : schedule.type === 'manual'
+          ? 'Feedback approved and held — manual release required.'
+          : 'Feedback approved for immediate release.',
+        actionColor: "default",
+      };
+
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: {
+            ...submission,
+            feedback: { ...submission.feedback, releaseSchedule: schedule },
+          },
+        },
+        auditLog: [logEntry, ...state.auditLog],
+      };
+    }),
+
+  resolveAppeal: (submissionId, resolution) =>
+    set((state) => {
+      const submission = state.submissions[submissionId];
+      if (!submission?.appeal) return state;
+
+      const logEntry: AuditLogEntry = {
+        id: `A-${Date.now()}`,
+        timestamp: new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        actor: "Prof. S. Kumar",
+        action: "Appeal Resolved",
+        targetSubmissionId: submissionId,
+        targetLabel: `${submission.paperId} (${submission.studentName})`,
+        details: `Decision: ${resolution}. Criterion disputed: ${submission.appeal.criterionDisputed}.`,
+        actionColor: resolution === "Uphold" ? "success" : resolution === "Reject" ? "danger" : "warning",
+      };
+
+      return {
+        submissions: {
+          ...state.submissions,
+          [submissionId]: {
+            ...submission,
+            appeal: { ...submission.appeal, status: "Resolved" },
+          },
+        },
+        auditLog: [logEntry, ...state.auditLog],
+      };
+    }),
+
+  setSessionState: (partial) =>
+    set((state) => ({
+      sessionState: { ...state.sessionState, ...partial },
+    })),
+
+  bulkApproveSubmissions: (submissionIds) =>
+    set((state) => {
+      const now = new Date().toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const newSubmissions = { ...state.submissions };
+      const newLogs: AuditLogEntry[] = [];
+
+      for (const id of submissionIds) {
+        const sub = newSubmissions[id];
+        if (!sub || sub.status === "Approved") continue;
+        newSubmissions[id] = { ...sub, status: "Approved" };
+        newLogs.push({
+          id: `A-${Date.now()}-${id}`,
+          timestamp: now,
+          actor: "Prof. S. Kumar",
+          action: "Bulk Approved",
+          targetSubmissionId: id,
+          targetLabel: `${sub.paperId} (${sub.studentName})`,
+          details: `Bulk approval — Strong confidence batch. Score: ${sub.criteria.reduce((a, c) => a + c.score, 0)}/${sub.criteria.reduce((a, c) => a + c.maxScore, 0)}.`,
+          actionColor: "success",
+        });
+      }
+
+      return {
+        submissions: newSubmissions,
+        auditLog: [...newLogs, ...state.auditLog],
+      };
+    }),
+}));
