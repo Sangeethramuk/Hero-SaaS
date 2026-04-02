@@ -69,25 +69,25 @@ export default function AssignmentsDashboard() {
       <div className="absolute top-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-accent/5 blur-[120px] pointer-events-none -z-10" />
 
       {/* Top Header */}
-      <header className="h-16 border-b border-border/40 backdrop-blur-xl px-8 flex items-center justify-between shrink-0">
+      <header className="h-16 border-b border-border/40 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-sm font-bold tracking-tight text-foreground leading-none">My Assignments</h1>
           <p className="text-xs text-muted mt-1">Manage all your grading assignments</p>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Avatar size="sm" className="bg-gradient-to-br from-accent/80 to-accent text-white font-semibold text-xs border border-accent/30">
+          <Avatar size="sm" className="bg-gradient-to-br from-accent/80 to-accent text-white font-semibold text-xs border border-accent/30 hidden sm:flex">
             <Avatar.Fallback>SK</Avatar.Fallback>
           </Avatar>
         </div>
       </header>
 
-      <main className="flex-1 p-8 w-full max-w-7xl mx-auto space-y-8">
+      <main className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto space-y-8">
         
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
               Assignments Dashboard
             </h1>
             <p className="mt-2 text-muted font-medium">
@@ -96,33 +96,33 @@ export default function AssignmentsDashboard() {
           </div>
           <Button 
             variant="primary" 
-            className="font-medium rounded-lg bg-accent hover:opacity-90 shadow-md shadow-accent/20"
+            className="font-medium rounded-lg bg-accent hover:opacity-90 shadow-md shadow-accent/20 w-full md:w-auto"
           >
             <BookOpen className="size-4 mr-2" /> Create New Assignment
           </Button>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-surface border border-border/50 rounded-xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">In Progress</p>
-            <p className="text-2xl font-bold tracking-tight text-accent">{activeAssignments.length}</p>
-            <p className="text-xs text-muted mt-1">active assignments</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="bg-surface border border-border/50 rounded-xl p-3 md:p-4 shadow-sm">
+            <p className="text-[10px] md:text-xs font-semibold text-muted uppercase tracking-wider mb-1">In Progress</p>
+            <p className="text-xl md:text-2xl font-bold tracking-tight text-accent">{activeAssignments.length}</p>
+            <p className="text-[10px] md:text-xs text-muted mt-1">active assignments</p>
           </div>
-          <div className="bg-surface border border-border/50 rounded-xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Completed</p>
-            <p className="text-2xl font-bold tracking-tight text-success">{completedAssignments.length}</p>
-            <p className="text-xs text-muted mt-1">this semester</p>
+          <div className="bg-surface border border-border/50 rounded-xl p-3 md:p-4 shadow-sm">
+            <p className="text-[10px] md:text-xs font-semibold text-muted uppercase tracking-wider mb-1">Completed</p>
+            <p className="text-xl md:text-2xl font-bold tracking-tight text-success">{completedAssignments.length}</p>
+            <p className="text-[10px] md:text-xs text-muted mt-1">this semester</p>
           </div>
-          <div className="bg-surface border border-border/50 rounded-xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Total Papers</p>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{totalSubmissions}</p>
-            <p className="text-xs text-muted mt-1">to evaluate</p>
+          <div className="bg-surface border border-border/50 rounded-xl p-3 md:p-4 shadow-sm">
+            <p className="text-[10px] md:text-xs font-semibold text-muted uppercase tracking-wider mb-1">Total Papers</p>
+            <p className="text-xl md:text-2xl font-bold tracking-tight text-foreground">{totalSubmissions}</p>
+            <p className="text-[10px] md:text-xs text-muted mt-1">to evaluate</p>
           </div>
-          <div className="bg-surface border border-border/50 rounded-xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Pending Review</p>
-            <p className="text-2xl font-bold tracking-tight text-warning">12</p>
-            <p className="text-xs text-muted mt-1">need attention</p>
+          <div className="bg-surface border border-border/50 rounded-xl p-3 md:p-4 shadow-sm">
+            <p className="text-[10px] md:text-xs font-semibold text-muted uppercase tracking-wider mb-1">Pending Review</p>
+            <p className="text-xl md:text-2xl font-bold tracking-tight text-warning">12</p>
+            <p className="text-[10px] md:text-xs text-muted mt-1">need attention</p>
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export default function AssignmentsDashboard() {
               <span className="text-sm text-muted">({activeAssignments.length} active)</span>
             </div>
             
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {activeAssignments.slice(0, 3).map((assignment) => {
                 const course = courses[assignment.courseId];
                 const progress = assignment.evaluationProgress;
@@ -204,7 +204,7 @@ export default function AssignmentsDashboard() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">All Assignments</h2>
           
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {sortedAssignments.map((assignment) => {
               const course = courses[assignment.courseId];
               const progress = assignment.evaluationProgress;
