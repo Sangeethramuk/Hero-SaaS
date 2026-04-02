@@ -24,7 +24,7 @@ export default function RootLayout({
         <Providers>
            <div className="flex min-h-screen">
               <Sidebar />
-              <main className="flex-1 ml-20 relative flex flex-col">
+              <main className="flex-1 md:ml-20 relative flex flex-col pb-16 md:pb-0">
                  <AssignmentTabs />
                  <div className="flex-1 overflow-auto">
                    {children}
