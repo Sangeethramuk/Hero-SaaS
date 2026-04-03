@@ -1,0 +1,178 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-default: var(--default);
+  --color-default-foreground: var(--default-foreground);
+  --color-border: var(--border);
+  --color-separator: var(--separator);
+
+  --color-accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
+  --color-success-soft: color-mix(in oklab, var(--success) 15%, transparent);
+  --color-warning-soft: color-mix(in oklab, var(--warning) 15%, transparent);
+  --color-danger-soft: color-mix(in oklab, var(--danger) 15%, transparent);
+
+  --color-accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
+
+  /* Modern typography */
+  --font-sans: "Inter", "Outfit", system-ui, sans-serif;
+}
+
+/* Modern Base Colors */
+:root {
+  /* Crisp, airy light mode */
+  --background: #ffffff;
+  --foreground: #09090b;
+
+  /* Modern vibrant primary (Electric Indigo) */
+  --accent: #6366f1;
+  --accent-foreground: #ffffff;
+
+  /* Semantic Feedback Colors */
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --warning: #f59e0b;
+  --warning-foreground: #ffffff;
+  --danger: #ef4444;
+  --danger-foreground: #ffffff;
+
+  /* Surfaces & muted text */
+  --muted: #71717a;
+  --surface: #ffffff;
+  --surface-foreground: #09090b;
+
+  --overlay: rgba(0, 0, 0, 0.4);
+  --overlay-foreground: #ffffff;
+
+  --default: #f4f4f5;
+  --default-foreground: #18181b;
+
+  --border: #e4e4e7;
+  --separator: #e4e4e7;
+
+  /* HeroUI variable overrides for a cohesive theme */
+  --heroui-primary: 238 60% 67%;
+  /* HSL for #6366f1 */
+  --heroui-background: 240 20% 99%;
+}
+
+.dark {
+  /* Deep, sleek dark mode (Midnight Slate/Zinc) */
+  --background: #09090b;
+  --foreground: #fafafa;
+
+  /* Lighter, glowing primary for dark mode */
+  --accent: #818cf8;
+  --accent-foreground: #ffffff;
+
+  --success: #34d399;
+  --success-foreground: #022c22;
+  --warning: #fbbf24;
+  --warning-foreground: #451a03;
+  --danger: #f87171;
+  --danger-foreground: #450a0a;
+
+  --muted: #a1a1aa;
+  --surface: #18181b;
+  --surface-foreground: #fafafa;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+  --overlay-foreground: #ffffff;
+
+  --default: #27272a;
+  --default-foreground: #fafafa;
+
+  --border: #27272a;
+  --separator: #27272a;
+
+  /* HeroUI variable overrides */
+  --heroui-primary: 238 88% 74%;
+  --heroui-background: 240 10% 4%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Subtle smooth background transition */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* ============================================
+   MOBILE RESPONSIVENESS UTILITIES
+   ============================================ */
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Touch target minimum size (44x44px per Apple HIG) */
+.touch-target-min {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe area support for notched devices (iPhone X+) */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-bottom-nav {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Bottom navigation height utility */
+.bottom-nav-height {
+  height: 64px;
+}
+
+/* Mobile-specific touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Remove hover effects on touch devices */
+  .hover\:bg-default\/40:hover {
+    background-color: transparent;
+  }
+  
+  /* Increase touch target on mobile */
+  .mobile-touch-target {
+    min-height: 48px;
+  }
+}
